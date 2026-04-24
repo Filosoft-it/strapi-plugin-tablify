@@ -9,7 +9,7 @@ interface Props {
 export const Output = (props: Props) => {
   return <Box marginTop={8}>
     <Box marginBottom={2}>
-      <Typography variant="delta" as="h4">
+      <Typography variant="delta" tag="h4">
         Output:
       </Typography>
     </Box>
@@ -19,7 +19,7 @@ export const Output = (props: Props) => {
           <Typography
             variant="omega"
             textColor="danger600"
-            as="pre"
+            tag="pre"
             style={{whiteSpace: "pre-line"}}
           >
             {props.importLog}
@@ -31,7 +31,7 @@ export const Output = (props: Props) => {
           <Typography
             variant="omega"
             textColor="primary600"
-            as="pre"
+            tag="pre"
             style={{whiteSpace: "pre-line", fontSize: 11}}
           >
             {props.debugLog}

@@ -1,4 +1,4 @@
-import {Box, Button, Flex, TextInput, Typography} from "@strapi/design-system";
+import {Box, Button, Flex, Field, TextInput, Typography} from "@strapi/design-system";
 import React from "react";
 
 interface Props {
@@ -15,22 +15,26 @@ interface Props {
 export const Import = (props: Props) => {
   return <Box marginBottom={6}>
     <Box marginBottom={2}>
-      <Typography variant="delta" as="h4">
+      <Typography variant="delta" tag="h4">
         Import
       </Typography>
     </Box>
     <Box marginBottom={4}>
       <Flex alignItems="center">
-        <TextInput
-          style={{width: 50, marginRight: 10}}
-          size="S"
-          label="CSV delimiter (default is comma)"
-          placeholder="Enter delimiter"
+        <Field.Root
           name="csv-delimiter"
-          value={props.csvDelimiter}
-          onChange={(e: any) => props.setCsvDelimiter(e.target.value)}
           hint="For example: , ; | \t"
-        />
+          style={{width: 260, marginRight: 10}}
+        >
+          <Field.Label>CSV delimiter (default is comma)</Field.Label>
+          <TextInput
+            size="S"
+            placeholder="Enter delimiter"
+            value={props.csvDelimiter}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.setCsvDelimiter(e.target.value)}
+          />
+          <Field.Hint />
+        </Field.Root>
         <Typography variant="omega" style={{marginLeft: 10}}>
           Character that separates values in your CSV file.
           Examples: comma (,), semicolon (;), tab (\t)
