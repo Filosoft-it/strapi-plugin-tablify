@@ -1,6 +1,7 @@
 // tablify/admin/src/utils/import-export-logic.ts
 
 import {csvToJson, downloadAsFile, jsonToCsv} from "./export-utils";
+import type {RelationConfig} from "../pages/Relations";
 
 // System fields to exclude from user operations
 export const SYSTEM_FIELDS = [
@@ -60,6 +61,28 @@ export function stripAndNormalizeBySchema(obj: any, schema: any): any {
   return result;
 }
 
+function applyRelationAliases(row: any, relations?: RelationConfig[]) {
+  if (!row || typeof row !== "object") return row;
+  if (!Array.isArray(relations) || relations.length === 0) return row;
+
+  for (const rel of relations) {
+    const csvKey = String(rel?.csvKey ?? "");
+    const relationField = String(rel?.relationField ?? "");
+    if (!relationField) continue;
+
+    // If CSV key isn't set, treat it as same as relationField
+    const effectiveCsvKey = csvKey || relationField;
+
+    // If relationField already present, don't overwrite (explicit value wins)
+    const existing = row[relationField];
+    if (existing !== undefined && existing !== null && existing !== "") continue;
+
+    row[relationField] = row[effectiveCsvKey];
+  }
+
+  return row;
+}
+
 // Handles exporting the selected table as JSON or CSV
 export async function handleDownload({
                                        type,
@@ -105,11 +128,13 @@ export async function importFile({
                                    tableName,
                                    tableSchema,
                                    csvDelimiter,
+                                   relations,
                                  }: {
   file: File;
   tableName: string;
   tableSchema: any;
   csvDelimiter: string;
+  relations?: RelationConfig[];
 }): Promise<{ log: string; debug: string }> {
   let debug = "";
   let log = "";
@@ -160,7 +185,9 @@ export async function importFile({
   }
 
   // Strip unwanted fields and normalize values according to schema
-  records = records.map((row) => stripAndNormalizeBySchema(row, tableSchema));
+  records = records
+    .map((row) => applyRelationAliases(row, relations))
+    .map((row) => stripAndNormalizeBySchema(row, tableSchema));
 
   debug += `Prepared for upload: ${records.length} objects\n`;
 
@@ -172,6 +199,7 @@ export async function importFile({
         name: tableName,
         data: records,
         format,
+        relations: relations ?? [],
       }),
     });
     const result = await res.json();

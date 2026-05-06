@@ -2,6 +2,14 @@ export const controller = {
   async hello(ctx) {
     ctx.body = "Hello from backend!";
   },
+  _findContentTypeByName(name: string) {
+    const allContentTypes = Object.values(strapi.contentTypes);
+    return allContentTypes.find(
+      (type: any) =>
+        type.info?.displayName?.toLowerCase() === name.toLowerCase() ||
+        type.collectionName?.toLowerCase() === name.toLowerCase()
+    );
+  },
   async tables(ctx) {
     const allContentTypes = Object.values(strapi.contentTypes);
 
@@ -22,13 +30,7 @@ export const controller = {
       ctx.throw(400, 'Name is required');
     }
 
-    // Поиск content type по displayName или collectionName
-    const allContentTypes = Object.values(strapi.contentTypes);
-    const found = allContentTypes.find(
-      type =>
-        type.info?.displayName?.toLowerCase() === name.toLowerCase() ||
-        type.collectionName?.toLowerCase() === name.toLowerCase()
-    );
+    const found = controller._findContentTypeByName(name);
 
     if (!found) {
       ctx.throw(404, 'Collection not found');
@@ -56,18 +58,13 @@ export const controller = {
     ctx.body = {data};
   },
   async importCollection(ctx) {
-    const {name, data, format = "json"} = ctx.request.body;
+    const {name, data, relations = []} = ctx.request.body;
     if (!name || !data) {
       ctx.throw(400, 'Name and data are required');
     }
 
     // Найти коллекцию
-    const allContentTypes = Object.values(strapi.contentTypes);
-    const found = allContentTypes.find(
-      type =>
-        type.info?.displayName?.toLowerCase() === name.toLowerCase() ||
-        type.collectionName?.toLowerCase() === name.toLowerCase()
-    );
+    const found = controller._findContentTypeByName(name);
     if (!found) {
       ctx.throw(404, 'Collection not found');
     }
@@ -81,7 +78,81 @@ export const controller = {
     let created = 0, failed = 0, failedDetails = [];
     for (const [i, item] of records.entries()) {
       try {
-        await strapi.db.query(uid).create({data: item});
+        const contentType = strapi.contentTypes[uid];
+        const attrs = contentType?.attributes ?? {};
+
+        const dataToCreate: any = {...item};
+
+        if (Array.isArray(relations) && relations.length) {
+          for (const rel of relations) {
+            const field = String(rel?.relationField ?? "");
+            const targetUid = String(rel?.targetUid ?? "");
+            const foreignField = String(rel?.foreignField ?? "");
+            if (!field || !targetUid || !foreignField) continue;
+
+            const attr = attrs[field];
+            if (!attr || attr.type !== "relation") {
+              throw new Error(`Relation field "${field}" is not a relation on ${uid}`);
+            }
+
+            const raw = dataToCreate[field];
+            if (raw === null || raw === undefined || raw === "") {
+              dataToCreate[field] = null;
+              continue;
+            }
+
+            const foreignAttrType =
+              (strapi.contentTypes as any)?.[targetUid]?.attributes?.[foreignField]?.type;
+            let matchValue: any = raw;
+            if (
+              foreignAttrType === "integer" ||
+              foreignAttrType === "biginteger" ||
+              foreignAttrType === "float" ||
+              foreignAttrType === "decimal"
+            ) {
+              const n = typeof raw === "number" ? raw : Number(raw);
+              if (Number.isNaN(n)) {
+                throw new Error(
+                  `Relation "${field}": value ${JSON.stringify(raw)} is not a number for ${targetUid}.${foreignField}`
+                );
+              }
+              matchValue = n;
+            }
+
+            const results = await (strapi as any).documents(targetUid).findMany({
+              filters: {
+                [foreignField]: { $eq: matchValue },
+              },
+              fields: ["documentId"],
+              limit: 2,
+              start: 0,
+            });
+
+            if (!Array.isArray(results) || results.length === 0) {
+              throw new Error(
+                `Relation "${field}": no match in ${targetUid} where ${foreignField} == ${JSON.stringify(raw)}`
+              );
+            }
+            if (results.length > 1) {
+              throw new Error(
+                `Relation "${field}": multiple matches in ${targetUid} where ${foreignField} == ${JSON.stringify(raw)}`
+              );
+            }
+
+            const foreignDocumentId = results[0]?.documentId;
+            if (!foreignDocumentId) {
+              throw new Error(`Relation "${field}": matched entry missing documentId`);
+            }
+
+            const relKind = String(attr.relation ?? "");
+            const isMulti =
+              relKind === "oneToMany" || relKind === "manyToMany" || relKind === "manyWay";
+
+            dataToCreate[field] = isMulti ? [foreignDocumentId] : foreignDocumentId;
+          }
+        }
+
+        await (strapi as any).documents(uid).create({data: dataToCreate});
         created++;
       } catch (e) {
         failed++;

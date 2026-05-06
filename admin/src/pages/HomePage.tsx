@@ -5,6 +5,7 @@ import {Export} from "./Export";
 import {Header} from "./Header";
 import {Import} from "./Import";
 import {Output} from "./Output";
+import {Relations, RelationConfig} from "./Relations";
 
 export const HomePage = () => {
   const [tables, setTables] = useState<
@@ -19,6 +20,10 @@ export const HomePage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tableSchema, setTableSchema] = useState<any>(null);
   const [fileName, setFileName] = useState<string>("");
+  const [relations, setRelations] = useState<RelationConfig[]>([]);
+  const [targetSchemasByUid, setTargetSchemasByUid] = useState<Record<string, any | null>>({});
+
+  const relationsStorageKey = selected ? `tablify.relations.${selected}` : `tablify.relations.`;
 
   useEffect(() => {
     fetch("/tablify/tables")
@@ -37,6 +42,54 @@ export const HomePage = () => {
       setTableSchema(null);
     }
   }, [selected]);
+
+  useEffect(() => {
+    if (!selected) {
+      setRelations([]);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(relationsStorageKey);
+      if (!raw) {
+        setRelations([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setRelations(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setRelations([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    try {
+      localStorage.setItem(relationsStorageKey, JSON.stringify(relations));
+    } catch {
+      // ignore storage issues (private mode/quota)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relations, selected]);
+
+  useEffect(() => {
+    const uids = Array.from(
+      new Set(
+        relations
+          .map((r) => r?.targetUid)
+          .filter((x): x is string => Boolean(x))
+      )
+    );
+    const missing = uids.filter((uid) => !(uid in targetSchemasByUid));
+    if (!missing.length) return;
+
+    missing.forEach((uid) => {
+      fetch(`/tablify/schema?uid=${encodeURIComponent(uid)}`)
+        .then((res) => res.json())
+        .then((schema) => setTargetSchemasByUid((prev) => ({...prev, [uid]: schema})))
+        .catch(() => setTargetSchemasByUid((prev) => ({...prev, [uid]: null})));
+    });
+  }, [relations, targetSchemasByUid]);
 
   const getSelectedTable = () => tables.find((t) => t.uid === selected);
 
@@ -71,6 +124,7 @@ export const HomePage = () => {
         tableName: table.tableName,
         tableSchema,
         csvDelimiter,
+        relations: relations.filter((r) => r.relationField && (r.csvKey || r.relationField) && r.targetUid && r.foreignField),
       });
       setImportLog(log);
       setDebugLog(debug);
@@ -116,6 +170,15 @@ export const HomePage = () => {
           onImport={onImport}
           fileName={fileName}
           importing={importing}/>
+
+        <Relations
+          disabled={!selected || importing}
+          tableSchema={tableSchema}
+          tables={tables}
+          targetSchemasByUid={targetSchemasByUid}
+          relations={relations}
+          setRelations={setRelations}
+        />
 
         <Output debugLog={debugLog} importLog={importLog}/>
 
