@@ -106,6 +106,20 @@ function stripAndNormalizeBySchema(obj, schema) {
   }
   return result;
 }
+function applyRelationAliases(row, relations) {
+  if (!row || typeof row !== "object") return row;
+  if (!Array.isArray(relations) || relations.length === 0) return row;
+  for (const rel of relations) {
+    const csvKey = String(rel?.csvKey ?? "");
+    const relationField = String(rel?.relationField ?? "");
+    if (!relationField) continue;
+    const effectiveCsvKey = csvKey || relationField;
+    const existing = row[relationField];
+    if (existing !== void 0 && existing !== null && existing !== "") continue;
+    row[relationField] = row[effectiveCsvKey];
+  }
+  return row;
+}
 async function handleDownload({
   type,
   selected,
@@ -140,7 +154,8 @@ async function importFile({
   file,
   tableName,
   tableSchema,
-  csvDelimiter
+  csvDelimiter,
+  relations
 }) {
   let debug = "";
   let log = "";
@@ -196,7 +211,7 @@ ${text.slice(0, 1e3)}
     debug += log + "\n";
     return { log, debug };
   }
-  records = records.map((row) => stripAndNormalizeBySchema(row, tableSchema));
+  records = records.map((row) => applyRelationAliases(row, relations)).map((row) => stripAndNormalizeBySchema(row, tableSchema));
   debug += `Prepared for upload: ${records.length} objects
 `;
   try {
@@ -206,7 +221,8 @@ ${text.slice(0, 1e3)}
       body: JSON.stringify({
         name: tableName,
         data: records,
-        format
+        format,
+        relations: relations ?? []
       })
     });
     const result = await res.json();
@@ -364,6 +380,175 @@ const Output = (props) => {
     ] })
   ] });
 };
+function getRelationFieldOptions(tableSchema) {
+  if (!tableSchema) return [];
+  return Object.entries(tableSchema).filter(([, attr]) => attr?.type === "relation").map(([key, attr]) => ({
+    value: key,
+    label: key,
+    targetUid: attr?.target
+  })).sort((a, b) => a.label.localeCompare(b.label));
+}
+function getForeignFieldOptions(targetSchema) {
+  if (!targetSchema) return [];
+  return Object.entries(targetSchema).filter(([key, attr]) => {
+    if (!key || key === "id" || key === "documentId") return false;
+    if (!attr || typeof attr !== "object") return false;
+    const t = attr.type;
+    return t === "string" || t === "text" || t === "email" || t === "uid" || t === "enumeration" || t === "integer" || t === "biginteger" || t === "float" || t === "decimal";
+  }).map(([key]) => ({ value: key, label: key })).sort((a, b) => a.label.localeCompare(b.label));
+}
+const Relations = (props) => {
+  const relationFields = getRelationFieldOptions(props.tableSchema);
+  const add = () => {
+    props.setRelations([
+      ...props.relations,
+      {
+        csvKey: "",
+        relationField: "",
+        targetUid: "",
+        foreignField: ""
+      }
+    ]);
+  };
+  const remove = (idx) => {
+    props.setRelations(props.relations.filter((_, i) => i !== idx));
+  };
+  const update = (idx, patch) => {
+    props.setRelations(
+      props.relations.map((r, i) => i === idx ? { ...r, ...patch } : r)
+    );
+  };
+  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginTop: 6, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 2, children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "delta", tag: "h4", children: "Relations (optional)" }) }),
+    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "omega", textColor: "neutral600", children: "Map a CSV column to a relation: the CSV value will be used to look up a target entry and connect it during import." }),
+    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 4, children: /* @__PURE__ */ jsxRuntime.jsx(
+      designSystem.Button,
+      {
+        size: "S",
+        variant: "default",
+        onClick: add,
+        disabled: props.disabled || !relationFields.length,
+        children: "Add relation"
+      }
+    ) }),
+    props.relations.map((rel, idx) => {
+      const relFieldMeta = relationFields.find((f) => f.value === rel.relationField);
+      const targetUid = rel.targetUid || relFieldMeta?.targetUid || "";
+      const targetSchema = targetUid ? props.targetSchemasByUid[targetUid] : null;
+      const foreignFields = getForeignFieldOptions(targetSchema);
+      return /* @__PURE__ */ jsxRuntime.jsxs(
+        designSystem.Box,
+        {
+          marginTop: 4,
+          padding: 4,
+          background: "neutral0",
+          hasRadius: true,
+          shadow: "tableShadow",
+          children: [
+            /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Flex, { alignItems: "flex-end", gap: 4, wrap: "wrap", children: [
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-csvKey-${idx}`, children: [
+                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "CSV column name" }),
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  designSystem.TextInput,
+                  {
+                    size: "S",
+                    placeholder: "e.g. client_name",
+                    value: rel.csvKey,
+                    disabled: props.disabled,
+                    onChange: (e) => update(idx, { csvKey: e.target.value })
+                  }
+                )
+              ] }) }),
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-relationField-${idx}`, children: [
+                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Relation field" }),
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  designSystem.SingleSelect,
+                  {
+                    "aria-label": "Relation field",
+                    placeholder: relationFields.length ? "Select a relation field" : "No relations in this table",
+                    value: rel.relationField || null,
+                    disabled: props.disabled || !relationFields.length,
+                    onChange: (value) => {
+                      const relationField = String(value);
+                      const meta = relationFields.find((f) => f.value === relationField);
+                      update(idx, {
+                        relationField,
+                        csvKey: rel.csvKey || relationField,
+                        targetUid: meta?.targetUid ?? "",
+                        foreignField: ""
+                      });
+                    },
+                    children: relationFields.map((f) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: f.value, children: f.label }, f.value))
+                  }
+                )
+              ] }) }),
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 320 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-target-${idx}`, children: [
+                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Connected table" }),
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  designSystem.SingleSelect,
+                  {
+                    "aria-label": "Target table",
+                    placeholder: "Select a table",
+                    value: targetUid || null,
+                    disabled: props.disabled || !rel.relationField,
+                    onChange: (value) => {
+                      update(idx, { targetUid: String(value), foreignField: "" });
+                    },
+                    children: props.tables.map((t) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: t.uid, children: `${t.displayName} (${t.tableName})` }, t.uid))
+                  }
+                )
+              ] }) }),
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-foreign-field-${idx}`, children: [
+                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Foreign key for match" }),
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  designSystem.SingleSelect,
+                  {
+                    "aria-label": "Foreign key for match",
+                    placeholder: targetUid ? "Select a field" : "Select table first",
+                    value: rel.foreignField || null,
+                    disabled: props.disabled || !targetUid,
+                    onChange: (value) => update(idx, { foreignField: String(value) }),
+                    children: foreignFields.map((f) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: f.value, children: f.label }, f.value))
+                  }
+                )
+              ] }) }),
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { children: /* @__PURE__ */ jsxRuntime.jsx(
+                designSystem.Button,
+                {
+                  size: "S",
+                  variant: "danger-light",
+                  onClick: () => remove(idx),
+                  disabled: props.disabled,
+                  children: "Remove"
+                }
+              ) })
+            ] }),
+            /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginTop: 3, children: [
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Divider, {}),
+              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 2, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Typography, { variant: "pi", textColor: "neutral600", children: [
+                "Import behavior: take value from CSV column ",
+                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.csvKey || "(not set)" }),
+                ", find 1 entry in",
+                " ",
+                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: targetUid || "(not set)" }),
+                " where ",
+                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.foreignField || "(not set)" }),
+                " ",
+                "equals it; then connect into relation field ",
+                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.relationField || "(not set)" }),
+                " by",
+                " ",
+                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: "documentId" }),
+                "."
+              ] }) })
+            ] })
+          ]
+        },
+        `${idx}-${rel.relationField}-${rel.csvKey}`
+      );
+    })
+  ] });
+};
 const HomePage = () => {
   const [tables, setTables] = react.useState([]);
   const [selected, setSelected] = react.useState(void 0);
@@ -375,6 +560,9 @@ const HomePage = () => {
   const fileInputRef = react.useRef(null);
   const [tableSchema, setTableSchema] = react.useState(null);
   const [fileName, setFileName] = react.useState("");
+  const [relations, setRelations] = react.useState([]);
+  const [targetSchemasByUid, setTargetSchemasByUid] = react.useState({});
+  const relationsStorageKey = selected ? `tablify.relations.${selected}` : `tablify.relations.`;
   react.useEffect(() => {
     fetch("/tablify/tables").then((res) => res.json()).then((data) => setTables(data)).catch(() => setTables([]));
   }, []);
@@ -385,6 +573,42 @@ const HomePage = () => {
       setTableSchema(null);
     }
   }, [selected]);
+  react.useEffect(() => {
+    if (!selected) {
+      setRelations([]);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(relationsStorageKey);
+      if (!raw) {
+        setRelations([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setRelations(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setRelations([]);
+    }
+  }, [selected]);
+  react.useEffect(() => {
+    if (!selected) return;
+    try {
+      localStorage.setItem(relationsStorageKey, JSON.stringify(relations));
+    } catch {
+    }
+  }, [relations, selected]);
+  react.useEffect(() => {
+    const uids = Array.from(
+      new Set(
+        relations.map((r) => r?.targetUid).filter((x) => Boolean(x))
+      )
+    );
+    const missing = uids.filter((uid) => !(uid in targetSchemasByUid));
+    if (!missing.length) return;
+    missing.forEach((uid) => {
+      fetch(`/tablify/schema?uid=${encodeURIComponent(uid)}`).then((res) => res.json()).then((schema) => setTargetSchemasByUid((prev) => ({ ...prev, [uid]: schema }))).catch(() => setTargetSchemasByUid((prev) => ({ ...prev, [uid]: null })));
+    });
+  }, [relations, targetSchemasByUid]);
   const getSelectedTable = () => tables.find((t) => t.uid === selected);
   const onDownload = async (type) => {
     setDownloading(type);
@@ -415,7 +639,8 @@ const HomePage = () => {
         file,
         tableName: table.tableName,
         tableSchema,
-        csvDelimiter
+        csvDelimiter,
+        relations: relations.filter((r) => r.relationField && (r.csvKey || r.relationField) && r.targetUid && r.foreignField)
       });
       setImportLog(log);
       setDebugLog(debug);
@@ -459,6 +684,17 @@ const HomePage = () => {
         onImport,
         fileName,
         importing
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      Relations,
+      {
+        disabled: !selected || importing,
+        tableSchema,
+        tables,
+        targetSchemasByUid,
+        relations,
+        setRelations
       }
     ),
     /* @__PURE__ */ jsxRuntime.jsx(Output, { debugLog, importLog })

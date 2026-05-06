@@ -1,0 +1,17 @@
+---
+description: Ensure plugin builds after changes
+---
+
+# Build requirement (Tablify)
+
+After **any substantive code change** (admin or server), you MUST run:
+
+- `npm run build`
+
+Before declaring the task complete, confirm the build succeeds (no errors).
+
+Recommended (when relevant):
+
+- `npm run test:ts:front`
+- `npm run test:ts:back`
+
