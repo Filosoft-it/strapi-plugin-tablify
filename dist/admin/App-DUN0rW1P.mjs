@@ -1,26 +1,45 @@
-"use strict";
-Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const jsxRuntime = require("react/jsx-runtime");
-const admin = require("@strapi/strapi/admin");
-const reactRouterDom = require("react-router-dom");
-const designSystem = require("@strapi/design-system");
-const react = require("react");
+import { jsxs, jsx } from "react/jsx-runtime";
+import { Page } from "@strapi/strapi/admin";
+import { Routes, Route } from "react-router-dom";
+import { Box, Typography, Field, SingleSelect, SingleSelectOption, Button, Flex, TextInput, Divider, Main } from "@strapi/design-system";
+import { useState, useRef, useEffect } from "react";
 function csvToJson(csvString, delimiter = ",") {
   let csv = csvString.replace(/^\uFEFF/, "").trim();
   let lines = csv.split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return [];
   const splitCsvRow = (row) => {
-    const re = new RegExp(
-      `\\s*(?:(?:"([^"]*(?:""[^"]*)*)")|([^"${delimiter}]+))\\s*(?:${delimiter}|$)`,
-      "g"
-    );
+    const d = (delimiter && delimiter.length ? delimiter : ",").slice(0, 1);
     const result = [];
-    let match;
-    let lastIndex = 0;
-    while ((match = re.exec(row)) !== null && lastIndex < row.length) {
-      lastIndex = re.lastIndex;
-      result.push(match[1] !== void 0 ? match[1].replace(/""/g, '"') : match[2]);
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          const next = row[i + 1];
+          if (next === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inQuotes = true;
+        continue;
+      }
+      if (ch === d) {
+        result.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += ch;
     }
+    result.push(cur);
     return result;
   };
   const header = splitCsvRow(lines[0]).map((h) => h.trim());
@@ -243,24 +262,24 @@ ${text.slice(0, 1e3)}
   return { log, debug };
 }
 const Export = (props) => {
-  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginBottom: 6, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 2, children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "delta", tag: "h4", children: "Export" }) }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 4, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: "tables", children: [
-      /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Tables" }),
-      /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.SingleSelect,
+  return /* @__PURE__ */ jsxs(Box, { marginBottom: 6, children: [
+    /* @__PURE__ */ jsx(Box, { marginBottom: 2, children: /* @__PURE__ */ jsx(Typography, { variant: "delta", tag: "h4", children: "Export" }) }),
+    /* @__PURE__ */ jsx(Box, { marginBottom: 4, children: /* @__PURE__ */ jsxs(Field.Root, { name: "tables", children: [
+      /* @__PURE__ */ jsx(Field.Label, { children: "Tables" }),
+      /* @__PURE__ */ jsx(
+        SingleSelect,
         {
           "aria-label": "Tables",
           placeholder: "Select a table",
           value: props.selected ?? null,
           onChange: (value) => props.setSelected(String(value)),
-          children: props?.tables?.map((table) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: table.uid, children: `${table.displayName} (${table.tableName})` }, table.uid))
+          children: props?.tables?.map((table) => /* @__PURE__ */ jsx(SingleSelectOption, { value: table.uid, children: `${table.displayName} (${table.tableName})` }, table.uid))
         }
       )
     ] }) }),
-    /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { display: "flex", children: [
-      /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Button,
+    /* @__PURE__ */ jsxs(Box, { display: "flex", children: [
+      /* @__PURE__ */ jsx(
+        Button,
         {
           style: { marginRight: 10 },
           size: "S",
@@ -271,8 +290,8 @@ const Export = (props) => {
           children: "Download JSON"
         }
       ),
-      /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Button,
+      /* @__PURE__ */ jsx(
+        Button,
         {
           style: { marginRight: 10 },
           size: "S",
@@ -287,25 +306,25 @@ const Export = (props) => {
   ] });
 };
 const Header = () => {
-  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginBottom: 4, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "alpha", tag: "h1", children: "Import & Export Data" }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "epsilon", tag: "p", children: "Select a collection to import data from CSV or JSON, or export your data in one click." })
+  return /* @__PURE__ */ jsxs(Box, { marginBottom: 4, children: [
+    /* @__PURE__ */ jsx(Typography, { variant: "alpha", tag: "h1", children: "Import & Export Data" }),
+    /* @__PURE__ */ jsx(Typography, { variant: "epsilon", tag: "p", children: "Select a collection to import data from CSV or JSON, or export your data in one click." })
   ] });
 };
 const Import = (props) => {
-  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginBottom: 6, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 2, children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "delta", tag: "h4", children: "Import" }) }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 4, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Flex, { alignItems: "center", children: [
-      /* @__PURE__ */ jsxRuntime.jsxs(
-        designSystem.Field.Root,
+  return /* @__PURE__ */ jsxs(Box, { marginBottom: 6, children: [
+    /* @__PURE__ */ jsx(Box, { marginBottom: 2, children: /* @__PURE__ */ jsx(Typography, { variant: "delta", tag: "h4", children: "Import" }) }),
+    /* @__PURE__ */ jsx(Box, { marginBottom: 4, children: /* @__PURE__ */ jsxs(Flex, { alignItems: "center", children: [
+      /* @__PURE__ */ jsxs(
+        Field.Root,
         {
           name: "csv-delimiter",
           hint: "For example: , ; | \\t",
           style: { width: 260, marginRight: 10 },
           children: [
-            /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "CSV delimiter (default is comma)" }),
-            /* @__PURE__ */ jsxRuntime.jsx(
-              designSystem.TextInput,
+            /* @__PURE__ */ jsx(Field.Label, { children: "CSV delimiter (default is comma)" }),
+            /* @__PURE__ */ jsx(
+              TextInput,
               {
                 size: "S",
                 placeholder: "Enter delimiter",
@@ -313,13 +332,13 @@ const Import = (props) => {
                 onChange: (e) => props.setCsvDelimiter(e.target.value)
               }
             ),
-            /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Hint, {})
+            /* @__PURE__ */ jsx(Field.Hint, {})
           ]
         }
       ),
-      /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "omega", style: { marginLeft: 10 }, children: "Character that separates values in your CSV file. Examples: comma (,), semicolon (;), tab (\\t)" })
+      /* @__PURE__ */ jsx(Typography, { variant: "omega", style: { marginLeft: 10 }, children: "Character that separates values in your CSV file. Examples: comma (,), semicolon (;), tab (\\t)" })
     ] }) }),
-    /* @__PURE__ */ jsxRuntime.jsx(
+    /* @__PURE__ */ jsx(
       "input",
       {
         type: "file",
@@ -329,9 +348,9 @@ const Import = (props) => {
         onChange: props.handleFileChange
       }
     ),
-    /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Flex, { alignItems: "center", children: [
-      /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Button,
+    /* @__PURE__ */ jsxs(Flex, { alignItems: "center", children: [
+      /* @__PURE__ */ jsx(
+        Button,
         {
           variant: "default",
           style: { marginRight: 10 },
@@ -339,8 +358,8 @@ const Import = (props) => {
           children: props.fileName ? "Change file" : "Select file"
         }
       ),
-      /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Button,
+      /* @__PURE__ */ jsx(
+        Button,
         {
           disabled: !props.selected || props.importing || !props.fileName,
           loading: props.importing,
@@ -350,15 +369,15 @@ const Import = (props) => {
         }
       )
     ] }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, {})
+    /* @__PURE__ */ jsx(Box, {})
   ] });
 };
 const Output = (props) => {
-  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginTop: 8, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 2, children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "delta", tag: "h4", children: "Output:" }) }),
-    props.importLog && /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { background: "neutral100", hasRadius: true, padding: 4, children: [
-      props.importLog && /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 4, children: /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Typography,
+  return /* @__PURE__ */ jsxs(Box, { marginTop: 8, children: [
+    /* @__PURE__ */ jsx(Box, { marginBottom: 2, children: /* @__PURE__ */ jsx(Typography, { variant: "delta", tag: "h4", children: "Output:" }) }),
+    props.importLog && /* @__PURE__ */ jsxs(Box, { background: "neutral100", hasRadius: true, padding: 4, children: [
+      props.importLog && /* @__PURE__ */ jsx(Box, { marginTop: 4, children: /* @__PURE__ */ jsx(
+        Typography,
         {
           variant: "omega",
           textColor: "danger600",
@@ -367,8 +386,8 @@ const Output = (props) => {
           children: props.importLog
         }
       ) }),
-      props.debugLog && /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 4, children: /* @__PURE__ */ jsxRuntime.jsx(
-        designSystem.Typography,
+      props.debugLog && /* @__PURE__ */ jsx(Box, { marginTop: 4, children: /* @__PURE__ */ jsx(
+        Typography,
         {
           variant: "omega",
           textColor: "primary600",
@@ -418,11 +437,11 @@ const Relations = (props) => {
       props.relations.map((r, i) => i === idx ? { ...r, ...patch } : r)
     );
   };
-  return /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginTop: 6, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginBottom: 2, children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "delta", tag: "h4", children: "Relations (optional)" }) }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Typography, { variant: "omega", textColor: "neutral600", children: "Map a CSV column to a relation: the CSV value will be used to look up a target entry and connect it during import." }),
-    /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 4, children: /* @__PURE__ */ jsxRuntime.jsx(
-      designSystem.Button,
+  return /* @__PURE__ */ jsxs(Box, { marginTop: 6, children: [
+    /* @__PURE__ */ jsx(Box, { marginBottom: 2, children: /* @__PURE__ */ jsx(Typography, { variant: "delta", tag: "h4", children: "Relations (optional)" }) }),
+    /* @__PURE__ */ jsx(Typography, { variant: "omega", textColor: "neutral600", children: "Map a CSV column to a relation: the CSV value will be used to look up a target entry and connect it during import." }),
+    /* @__PURE__ */ jsx(Box, { marginTop: 4, children: /* @__PURE__ */ jsx(
+      Button,
       {
         size: "S",
         variant: "default",
@@ -436,8 +455,8 @@ const Relations = (props) => {
       const targetUid = rel.targetUid || relFieldMeta?.targetUid || "";
       const targetSchema = targetUid ? props.targetSchemasByUid[targetUid] : null;
       const foreignFields = getForeignFieldOptions(targetSchema);
-      return /* @__PURE__ */ jsxRuntime.jsxs(
-        designSystem.Box,
+      return /* @__PURE__ */ jsxs(
+        Box,
         {
           marginTop: 4,
           padding: 4,
@@ -445,11 +464,11 @@ const Relations = (props) => {
           hasRadius: true,
           shadow: "tableShadow",
           children: [
-            /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Flex, { alignItems: "flex-end", gap: 4, wrap: "wrap", children: [
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-csvKey-${idx}`, children: [
-                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "CSV column name" }),
-                /* @__PURE__ */ jsxRuntime.jsx(
-                  designSystem.TextInput,
+            /* @__PURE__ */ jsxs(Flex, { alignItems: "flex-end", gap: 4, wrap: "wrap", children: [
+              /* @__PURE__ */ jsx(Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxs(Field.Root, { name: `relation-csvKey-${idx}`, children: [
+                /* @__PURE__ */ jsx(Field.Label, { children: "CSV column name" }),
+                /* @__PURE__ */ jsx(
+                  TextInput,
                   {
                     size: "S",
                     placeholder: "e.g. client_name",
@@ -459,10 +478,10 @@ const Relations = (props) => {
                   }
                 )
               ] }) }),
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-relationField-${idx}`, children: [
-                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Relation field" }),
-                /* @__PURE__ */ jsxRuntime.jsx(
-                  designSystem.SingleSelect,
+              /* @__PURE__ */ jsx(Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxs(Field.Root, { name: `relation-relationField-${idx}`, children: [
+                /* @__PURE__ */ jsx(Field.Label, { children: "Relation field" }),
+                /* @__PURE__ */ jsx(
+                  SingleSelect,
                   {
                     "aria-label": "Relation field",
                     placeholder: relationFields.length ? "Select a relation field" : "No relations in this table",
@@ -478,14 +497,14 @@ const Relations = (props) => {
                         foreignField: ""
                       });
                     },
-                    children: relationFields.map((f) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: f.value, children: f.label }, f.value))
+                    children: relationFields.map((f) => /* @__PURE__ */ jsx(SingleSelectOption, { value: f.value, children: f.label }, f.value))
                   }
                 )
               ] }) }),
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 320 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-target-${idx}`, children: [
-                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Connected table" }),
-                /* @__PURE__ */ jsxRuntime.jsx(
-                  designSystem.SingleSelect,
+              /* @__PURE__ */ jsx(Box, { style: { minWidth: 320 }, children: /* @__PURE__ */ jsxs(Field.Root, { name: `relation-target-${idx}`, children: [
+                /* @__PURE__ */ jsx(Field.Label, { children: "Connected table" }),
+                /* @__PURE__ */ jsx(
+                  SingleSelect,
                   {
                     "aria-label": "Target table",
                     placeholder: "Select a table",
@@ -494,26 +513,26 @@ const Relations = (props) => {
                     onChange: (value) => {
                       update(idx, { targetUid: String(value), foreignField: "" });
                     },
-                    children: props.tables.map((t) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: t.uid, children: `${t.displayName} (${t.tableName})` }, t.uid))
+                    children: props.tables.map((t) => /* @__PURE__ */ jsx(SingleSelectOption, { value: t.uid, children: `${t.displayName} (${t.tableName})` }, t.uid))
                   }
                 )
               ] }) }),
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Field.Root, { name: `relation-foreign-field-${idx}`, children: [
-                /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: "Foreign key for match" }),
-                /* @__PURE__ */ jsxRuntime.jsx(
-                  designSystem.SingleSelect,
+              /* @__PURE__ */ jsx(Box, { style: { minWidth: 260 }, children: /* @__PURE__ */ jsxs(Field.Root, { name: `relation-foreign-field-${idx}`, children: [
+                /* @__PURE__ */ jsx(Field.Label, { children: "Foreign key for match" }),
+                /* @__PURE__ */ jsx(
+                  SingleSelect,
                   {
                     "aria-label": "Foreign key for match",
                     placeholder: targetUid ? "Select a field" : "Select table first",
                     value: rel.foreignField || null,
                     disabled: props.disabled || !targetUid,
                     onChange: (value) => update(idx, { foreignField: String(value) }),
-                    children: foreignFields.map((f) => /* @__PURE__ */ jsxRuntime.jsx(designSystem.SingleSelectOption, { value: f.value, children: f.label }, f.value))
+                    children: foreignFields.map((f) => /* @__PURE__ */ jsx(SingleSelectOption, { value: f.value, children: f.label }, f.value))
                   }
                 )
               ] }) }),
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { children: /* @__PURE__ */ jsxRuntime.jsx(
-                designSystem.Button,
+              /* @__PURE__ */ jsx(Box, { children: /* @__PURE__ */ jsx(
+                Button,
                 {
                   size: "S",
                   variant: "danger-light",
@@ -523,22 +542,22 @@ const Relations = (props) => {
                 }
               ) })
             ] }),
-            /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { marginTop: 3, children: [
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Divider, {}),
-              /* @__PURE__ */ jsxRuntime.jsx(designSystem.Box, { marginTop: 2, children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Typography, { variant: "pi", textColor: "neutral600", children: [
+            /* @__PURE__ */ jsxs(Box, { marginTop: 3, children: [
+              /* @__PURE__ */ jsx(Divider, {}),
+              /* @__PURE__ */ jsx(Box, { marginTop: 2, children: /* @__PURE__ */ jsxs(Typography, { variant: "pi", textColor: "neutral600", children: [
                 "Import behavior: take value from CSV column ",
-                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.csvKey || "(not set)" }),
+                /* @__PURE__ */ jsx("strong", { children: rel.csvKey || "(not set)" }),
                 ", find 1 entry in",
                 " ",
-                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: targetUid || "(not set)" }),
+                /* @__PURE__ */ jsx("strong", { children: targetUid || "(not set)" }),
                 " where ",
-                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.foreignField || "(not set)" }),
+                /* @__PURE__ */ jsx("strong", { children: rel.foreignField || "(not set)" }),
                 " ",
                 "equals it; then connect into relation field ",
-                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: rel.relationField || "(not set)" }),
+                /* @__PURE__ */ jsx("strong", { children: rel.relationField || "(not set)" }),
                 " by",
                 " ",
-                /* @__PURE__ */ jsxRuntime.jsx("strong", { children: "documentId" }),
+                /* @__PURE__ */ jsx("strong", { children: "documentId" }),
                 "."
               ] }) })
             ] })
@@ -550,30 +569,30 @@ const Relations = (props) => {
   ] });
 };
 const HomePage = () => {
-  const [tables, setTables] = react.useState([]);
-  const [selected, setSelected] = react.useState(void 0);
-  const [downloading, setDownloading] = react.useState(false);
-  const [importing, setImporting] = react.useState(false);
-  const [importLog, setImportLog] = react.useState("");
-  const [csvDelimiter, setCsvDelimiter] = react.useState(",");
-  const [debugLog, setDebugLog] = react.useState("");
-  const fileInputRef = react.useRef(null);
-  const [tableSchema, setTableSchema] = react.useState(null);
-  const [fileName, setFileName] = react.useState("");
-  const [relations, setRelations] = react.useState([]);
-  const [targetSchemasByUid, setTargetSchemasByUid] = react.useState({});
+  const [tables, setTables] = useState([]);
+  const [selected, setSelected] = useState(void 0);
+  const [downloading, setDownloading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importLog, setImportLog] = useState("");
+  const [csvDelimiter, setCsvDelimiter] = useState(",");
+  const [debugLog, setDebugLog] = useState("");
+  const fileInputRef = useRef(null);
+  const [tableSchema, setTableSchema] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [relations, setRelations] = useState([]);
+  const [targetSchemasByUid, setTargetSchemasByUid] = useState({});
   const relationsStorageKey = selected ? `tablify.relations.${selected}` : `tablify.relations.`;
-  react.useEffect(() => {
+  useEffect(() => {
     fetch("/tablify/tables").then((res) => res.json()).then((data) => setTables(data)).catch(() => setTables([]));
   }, []);
-  react.useEffect(() => {
+  useEffect(() => {
     if (selected) {
       fetch(`/tablify/schema?uid=${encodeURIComponent(selected)}`).then((res) => res.json()).then(setTableSchema).catch(() => setTableSchema(null));
     } else {
       setTableSchema(null);
     }
   }, [selected]);
-  react.useEffect(() => {
+  useEffect(() => {
     if (!selected) {
       setRelations([]);
       return;
@@ -590,14 +609,14 @@ const HomePage = () => {
       setRelations([]);
     }
   }, [selected]);
-  react.useEffect(() => {
+  useEffect(() => {
     if (!selected) return;
     try {
       localStorage.setItem(relationsStorageKey, JSON.stringify(relations));
     } catch {
     }
   }, [relations, selected]);
-  react.useEffect(() => {
+  useEffect(() => {
     const uids = Array.from(
       new Set(
         relations.map((r) => r?.targetUid).filter((x) => Boolean(x))
@@ -661,9 +680,9 @@ const HomePage = () => {
       setFileName("");
     }
   };
-  return /* @__PURE__ */ jsxRuntime.jsx(designSystem.Main, { children: /* @__PURE__ */ jsxRuntime.jsxs(designSystem.Box, { padding: 8, background: "neutral0", shadow: "tableShadow", hasRadius: true, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(Header, {}),
-    /* @__PURE__ */ jsxRuntime.jsx(
+  return /* @__PURE__ */ jsx(Main, { children: /* @__PURE__ */ jsxs(Box, { padding: 8, background: "neutral0", shadow: "tableShadow", hasRadius: true, children: [
+    /* @__PURE__ */ jsx(Header, {}),
+    /* @__PURE__ */ jsx(
       Export,
       {
         tables,
@@ -673,7 +692,7 @@ const HomePage = () => {
         downloading
       }
     ),
-    /* @__PURE__ */ jsxRuntime.jsx(
+    /* @__PURE__ */ jsx(
       Import,
       {
         selected,
@@ -686,7 +705,7 @@ const HomePage = () => {
         importing
       }
     ),
-    /* @__PURE__ */ jsxRuntime.jsx(
+    /* @__PURE__ */ jsx(
       Relations,
       {
         disabled: !selected || importing,
@@ -697,13 +716,15 @@ const HomePage = () => {
         setRelations
       }
     ),
-    /* @__PURE__ */ jsxRuntime.jsx(Output, { debugLog, importLog })
+    /* @__PURE__ */ jsx(Output, { debugLog, importLog })
   ] }) });
 };
 const App = () => {
-  return /* @__PURE__ */ jsxRuntime.jsxs(reactRouterDom.Routes, { children: [
-    /* @__PURE__ */ jsxRuntime.jsx(reactRouterDom.Route, { index: true, element: /* @__PURE__ */ jsxRuntime.jsx(HomePage, {}) }),
-    /* @__PURE__ */ jsxRuntime.jsx(reactRouterDom.Route, { path: "*", element: /* @__PURE__ */ jsxRuntime.jsx(admin.Page.Error, {}) })
+  return /* @__PURE__ */ jsxs(Routes, { children: [
+    /* @__PURE__ */ jsx(Route, { index: true, element: /* @__PURE__ */ jsx(HomePage, {}) }),
+    /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Page.Error, {}) })
   ] });
 };
-exports.App = App;
+export {
+  App
+};

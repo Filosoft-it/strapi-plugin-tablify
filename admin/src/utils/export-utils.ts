@@ -17,19 +17,47 @@ export function csvToJson(csvString: string, delimiter: string = ","): any[] {
   let csv = csvString.replace(/^\uFEFF/, '').trim();
   let lines = csv.split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return [];
-  // Продвинутый split с учётом кавычек
+  // RFC4180-ish CSV row parser: keeps empty fields (,,) and respects quotes.
+  // Old regex parser dropped empty cells, causing column shifts on import.
   const splitCsvRow = (row: string) => {
-    const re = new RegExp(
-      `\\s*(?:(?:"([^"]*(?:""[^"]*)*)")|([^"${delimiter}]+))\\s*(?:${delimiter}|$)`,
-      "g"
-    );
-    const result = [];
-    let match;
-    let lastIndex = 0;
-    while ((match = re.exec(row)) !== null && lastIndex < row.length) {
-      lastIndex = re.lastIndex;
-      result.push(match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2]);
+    const d = (delimiter && delimiter.length ? delimiter : ",").slice(0, 1);
+    const result: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          const next = row[i + 1];
+          if (next === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inQuotes = true;
+        continue;
+      }
+
+      if (ch === d) {
+        result.push(cur);
+        cur = "";
+        continue;
+      }
+
+      cur += ch;
     }
+
+    result.push(cur);
     return result;
   };
   const header = splitCsvRow(lines[0]).map(h => h.trim());
