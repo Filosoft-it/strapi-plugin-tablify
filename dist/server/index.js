@@ -8,6 +8,86 @@ const config = {
   }
 };
 const contentTypes = {};
+function formatInnerLikeEntry(entry) {
+  if (entry == null) return null;
+  if (typeof entry === "string") {
+    const t = entry.trim();
+    return t || null;
+  }
+  if (typeof entry !== "object") return null;
+  const o = entry;
+  const msg = o.message != null && String(o.message).trim() ? String(o.message).trim() : null;
+  if (!msg) return null;
+  const path = o.path;
+  if (path === void 0 || path === null || path === "") return msg;
+  const pathStr = Array.isArray(path) ? path.filter((p) => p !== void 0 && p !== null && p !== "").join(".") : String(path);
+  return pathStr ? `${pathStr}: ${msg}` : msg;
+}
+function collectImportErrorMessages(err, out, seen) {
+  if (err == null) return;
+  if (typeof err === "object") {
+    const e = err;
+    const inner = e.inner;
+    if (Array.isArray(inner) && inner.length) {
+      for (const item of inner) {
+        const line = formatInnerLikeEntry(item);
+        if (line && !seen.has(line)) {
+          seen.add(line);
+          out.push(line);
+        }
+      }
+    }
+    const issues = e.issues;
+    if (Array.isArray(issues) && issues.length) {
+      for (const issue of issues) {
+        const line = formatInnerLikeEntry(issue);
+        if (line && !seen.has(line)) {
+          seen.add(line);
+          out.push(line);
+        }
+      }
+    }
+    const details = e.details;
+    if (details && typeof details === "object") {
+      const nestedErrors = details.errors;
+      if (Array.isArray(nestedErrors) && nestedErrors.length) {
+        for (const item of nestedErrors) {
+          const line = formatInnerLikeEntry(item);
+          if (line && !seen.has(line)) {
+            seen.add(line);
+            out.push(line);
+          }
+        }
+      }
+    }
+    if (e.cause) {
+      collectImportErrorMessages(e.cause, out, seen);
+    }
+  }
+  if (!out.length && typeof err === "object" && err !== null) {
+    const msg = err.message;
+    if (msg && String(msg).trim()) {
+      const line = String(msg).trim();
+      if (!seen.has(line)) {
+        seen.add(line);
+        out.push(line);
+      }
+    }
+  } else if (!out.length && typeof err === "string" && err.trim()) {
+    const line = err.trim();
+    if (!seen.has(line)) {
+      seen.add(line);
+      out.push(line);
+    }
+  }
+}
+function formatImportCaughtError(err) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  collectImportErrorMessages(err, out, seen);
+  if (!out.length) return "Unknown error";
+  return out.join(", ");
+}
 const controller = {
   async hello(ctx) {
     ctx.body = "Hello from backend!";
@@ -128,7 +208,7 @@ const controller = {
         created++;
       } catch (e) {
         failed++;
-        failedDetails.push(`Row ${i + 1}: ${e?.message || "Unknown error"}`);
+        failedDetails.push(`Row ${i + 1}: ${formatImportCaughtError(e)}`);
       }
     }
     ctx.body = { success: true, created, failed, failedDetails };

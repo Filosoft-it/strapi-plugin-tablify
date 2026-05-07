@@ -1,3 +1,5 @@
+import {formatImportCaughtError} from '../utils/format-import-error';
+
 export const controller = {
   async hello(ctx) {
     ctx.body = "Hello from backend!";
@@ -156,7 +158,7 @@ export const controller = {
         created++;
       } catch (e) {
         failed++;
-        failedDetails.push(`Row ${i + 1}: ${(e?.message || "Unknown error")}`);
+        failedDetails.push(`Row ${i + 1}: ${formatImportCaughtError(e)}`);
       }
     }
     ctx.body = {success: true, created, failed, failedDetails};
